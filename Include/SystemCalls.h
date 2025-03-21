@@ -25,5 +25,3 @@
 #define SYS_CPUTIME		        19
 #define SYS_GETPID		        20
 
-void Exit_real(int resultCode);
-int wait_real(int* pStatus);

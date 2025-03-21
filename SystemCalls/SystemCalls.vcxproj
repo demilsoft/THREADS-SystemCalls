@@ -37,6 +37,9 @@
     <ClInclude Include="..\Include\THREADSLib.h" />
     <ClInclude Include="..\Include\TList.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\bin\RunSysCallTests.bat" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>

@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Batch Files">
+      <UniqueIdentifier>{34853042-03f8-486b-b480-0cb5621ba94e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\SystemCalls.c">
@@ -38,5 +41,10 @@
     <ClInclude Include="..\Include\TList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\bin\RunSysCallTests.bat">
+      <Filter>Batch Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

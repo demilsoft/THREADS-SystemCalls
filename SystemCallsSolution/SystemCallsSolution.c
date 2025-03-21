@@ -9,6 +9,10 @@
 #include "SystemCalls.h"
 #include "libuser.h"
 
+void sys_exit(int resultCode);
+int sys_wait(int* pStatus)
+;
+
 struct psr_bits {
     unsigned int cur_int_enable : 1;
     unsigned int cur_mode : 1;
@@ -22,25 +26,6 @@ union psr_values {
     unsigned int integer_part;
 };
 
-/* STATIC FUNCTIONS */
-/* ************************************************************************
-   Name - DebugConsole
-   Purpose - Prints  the message to the console_output if in debug mode
-   Parameters - format string and va args
-   Returns - nothing
-   Side Effects -
-   ----------------------------------------------------------------------- */
-static inline void DebugConsole(char* format, ...)
-{
-#ifdef DEBUG2
-    char buffer[256];
-    va_list argptr;
-    va_start(argptr, format);
-    vsprintf(buffer, format, argptr);
-    console_output(buffer);
-    va_end(argptr);
-#endif
-}
 
 /*****************************************************************************
    Name - checkKernelMode
@@ -53,7 +38,7 @@ static inline void checkKernelMode(const char* functionName)
 {
     union psr_values psrValue;
 
-    DebugConsole("checkKernelMode(): verifying kernel mode for %d, %s\n", 1, functionName);
+    console_output(TRUE, "checkKernelMode(): verifying kernel mode for %d, %s\n", 1, functionName);
 
     psrValue.integer_part = get_psr();
     if (psrValue.bits.cur_mode == 0)
@@ -153,7 +138,7 @@ int MessagingEntryPoint(char* arg)
 
 #ifdef SYSTEM_CALLS_PROJECT
     pid = sys_spawn("SystemCalls", SystemCallsEntryPoint, NULL, THREADS_MIN_STACK_SIZE * 4, 3);
-    wait_real(&status);
+    sys_wait(&status);
 #else
     pid = k_spawn("SystemCalls", start3, NULL, 4 * USLOSS_MIN_STACK, 3);
 
@@ -247,7 +232,7 @@ static int launchUserProcess(char* pArg)
     if (signaled())
     {
         console_output(FALSE, "%s - Process signaled in launch.\n", "launchUserProcess");
-        Exit_real(0);
+        sys_exit(0);
     }
 
     set_psr(get_psr() & ~PSR_KERNEL_MODE);
@@ -259,7 +244,7 @@ static int launchUserProcess(char* pArg)
     return 0;
 }
 
-int getPID_real(int* pPid)
+int sys_getpid(int* pPid)
 {
     *pPid = k_getpid();
 
@@ -305,7 +290,7 @@ int k_semp(int sem_id)
                     mailbox_receive(pSem->mboxMutex, NULL, 0, TRUE);
 
                     /* Exit */
-                    Exit_real(1);
+                    sys_exit(1);
                 }
             }
             else
@@ -476,19 +461,19 @@ int sys_spawn(char* name, int (*startFunc)(char*), char* arg, int stackSize, int
     return pid;
 }
 
-int gettimeofday_real(int* pTime)
+int sys_gettimeofday(int* pTime)
 {
     *pTime = system_clock();
     return 0;
 }
 
-int cputime_real(int* pTime)
+int sys_cputime(int* pTime)
 {
     *pTime = read_time();
     return 0;
 }
 
-void Exit_real(int resultCode)
+void sys_exit(int resultCode)
 {
     int pid;
     int procSlot;
@@ -523,7 +508,7 @@ void Exit_real(int resultCode)
     k_exit(resultCode);
 }
 
-int wait_real(int* pStatus)
+int sys_wait(int* pStatus)
 {
     int childPid;
     UserProcess* pProcess;
@@ -546,7 +531,7 @@ static void sysNull(system_call_arguments_t* args)
 {
     console_output(FALSE, "nullsys3(): Invalid system_call %d\n", args->call_id);
     console_output(FALSE, "nullsys3(): process %d terminating\n", k_getpid());
-    Exit_real(1);
+    sys_exit(1);
 } /* nullsys3 */
 
 static void system_call_handler(system_call_arguments_t* args)
@@ -558,7 +543,7 @@ static void system_call_handler(system_call_arguments_t* args)
     {
         console_output(FALSE, "system_call(): Invalid system_call %d, no arguments.\n", args->call_id);
         console_output(FALSE, "system_call(): process %d terminating\n", k_getpid());
-        Exit_real(1);
+        sys_exit(1);
     }
 
     switch (args->call_id)
@@ -574,12 +559,12 @@ static void system_call_handler(system_call_arguments_t* args)
         break;
     case SYS_WAIT:
         pFunctionName = "Wait";
-        args->arguments[0] = (intptr_t)wait_real((int*)&args->arguments[1]);
+        args->arguments[0] = (intptr_t)sys_wait((int*)&args->arguments[1]);
         args->arguments[3] = (intptr_t)((intptr_t)args->arguments[0] >= 0 ? 0 : -1);
         break;
     case SYS_EXIT:
         pFunctionName = "Exit";
-        Exit_real((int)args->arguments[0]);
+        sys_exit((int)args->arguments[0]);
         break;
     case SYS_SEMCREATE:
         pFunctionName = "SemCreate";
@@ -600,15 +585,15 @@ static void system_call_handler(system_call_arguments_t* args)
         break;
     case SYS_GETPID:
         pFunctionName = "GetPID";
-        getPID_real((int*)&args->arguments[0]);
+        sys_getpid((int*)&args->arguments[0]);
         break;
     case SYS_GETTIMEOFDAY:
-        gettimeofday_real((int*)&args->arguments[0]);
+        sys_gettimeofday((int*)&args->arguments[0]);
         pFunctionName = "GetTimeOfDay";
         break;
     case SYS_CPUTIME:
         pFunctionName = "CPUTime";
-        cputime_real((int*)&args->arguments[0]);
+        sys_cputime((int*)&args->arguments[0]);
         break;
     default:
         pFunctionName = "null";
@@ -620,7 +605,7 @@ static void system_call_handler(system_call_arguments_t* args)
     if (signaled())
     {
         console_output(FALSE, "%s - Process signaled while in system call.\n", pFunctionName);
-        Exit_real(0);
+        sys_exit(0);
     }
 
     USERMODE;
