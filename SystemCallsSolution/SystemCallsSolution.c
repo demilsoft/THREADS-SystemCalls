@@ -38,7 +38,8 @@ static inline void checkKernelMode(const char* functionName)
 {
     union psr_values psrValue;
 
-    console_output(TRUE, "checkKernelMode(): verifying kernel mode for %d, %s\n", 1, functionName);
+
+//    console_output(TRUE, "checkKernelMode(): verifying kernel mode for %d, %s\n", 1, functionName);
 
     psrValue.integer_part = get_psr();
     if (psrValue.bits.cur_mode == 0)
@@ -436,7 +437,7 @@ int sys_spawn(char* name, int (*startFunc)(char*), char* arg, int stackSize, int
         pid = k_spawn(name, launchUserProcess, arg, stackSize, priority);
         if (pid < 0)
         {
-            console_output(FALSE, "Failed to create user process.");
+//            console_output(FALSE, "Failed to create user process.");
         }
         else
         {
@@ -490,8 +491,8 @@ void sys_exit(int resultCode)
     while ((pChild = TListPopNode(&pProcess->children)) != NULL)
     {
         mailbox_receive(pProcess->mboxMutex, NULL, 0, TRUE);
-        //        k_kill(pChild->pid, SIG_TERM);
-        k_wait(&exitCode);
+        k_kill(pChild->pid, SIG_TERM);
+        k_join(pChild->pid , &exitCode);
         mailbox_send(pProcess->mboxMutex, NULL, 0, TRUE);
     }
 
