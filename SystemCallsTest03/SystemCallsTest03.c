@@ -12,6 +12,23 @@ int SpawnOne(void* strArgs);
 *
 * SystemCallsTest03
 *
+* PURPOSE:
+*   Tests a two-level process hierarchy where the root process spawns an
+*   intermediate child, which in turn spawns a grandchild. This verifies
+*   that Spawn works correctly from within a child process (not just from
+*   the initial entry point), and that the process tree can be at least
+*   three levels deep. The root exits without waiting; the intermediate
+*   exits after spawning; the grandchild does no semaphore work.
+*
+* EXPECTED BEHAVIOR:
+*   - Root spawns Child1 (intermediate) successfully.
+*   - Child1 spawns its own child (grandchild) successfully.
+*   - Grandchild starts and exits with status 9.
+*   - Child1 exits with status 7.
+*   - Root exits with status 8 without waiting.
+*
+* SYSTEM CALLS TESTED:
+*   Spawn (from child context), Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

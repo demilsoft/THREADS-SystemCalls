@@ -9,6 +9,23 @@
 *
 * SystemCallsTest06
 *
+* PURPOSE:
+*   Tests basic semaphore blocking and unblocking between two child processes.
+*   A semaphore is created with initial value 0. Child 1 attempts SemP
+*   immediately and must block since the value is 0. Child 2 calls SemV
+*   to increment the semaphore, which unblocks Child 1. The parent calls
+*   Wait twice to collect both children. This is the fundamental producer/
+*   consumer pattern and verifies the core SemP/SemV interaction.
+*
+* EXPECTED BEHAVIOR:
+*   - Child 1 blocks on SemP until Child 2 calls SemV.
+*   - Child 2 completes SemV and exits.
+*   - Child 1 unblocks, completes, and exits with status 9.
+*   - Both Wait calls return successfully.
+*   - Parent exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   SemCreate, SemP (blocking), SemV (unblocking), Spawn, Wait, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

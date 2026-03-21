@@ -13,6 +13,25 @@ int SpawnThreeSimple(void* strArgs);
 *
 * SystemCallsTest15
 *
+* PURPOSE:
+*   Tests a multi-level process tree with mixed wait behavior. The root spawns
+*   one child (SpawnOneWithGrandchildOneWithout) which in turn spawns a
+*   grandchild (SpawnThreeSimple) that creates three great-grandchildren.
+*   SpawnOneWithGrandchildOneWithout waits for SpawnThreeSimple to complete
+*   before spawning a second direct child with no grandchildren. The root waits
+*   for its direct child. This exercises nested Wait calls, process tree cleanup
+*   at multiple levels, and the interaction between waited and un-waited children
+*   at the grandchild level (SpawnThreeSimple exits without waiting).
+*
+* EXPECTED BEHAVIOR:
+*   - SpawnThreeSimple spawns 3 children and exits without waiting (orphans them).
+*   - SpawnOneWithGrandchildOneWithout waits for SpawnThreeSimple, then spawns
+*     and waits for a second simple child.
+*   - Root waits for SpawnOneWithGrandchildOneWithout.
+*   - All processes exit cleanly with no hangs.
+*
+* SYSTEM CALLS TESTED:
+*   Spawn, Wait (nested, multi-level), Exit (with and without waiting for children)
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

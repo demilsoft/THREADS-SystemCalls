@@ -7,8 +7,25 @@
 
 /*********************************************************************************
 *
-* SystemCallsTest00
+* SystemCallsTest08
 *
+* PURPOSE:
+*   Tests semaphore table capacity management including overflow detection
+*   and slot reclamation after SemFree. Creates exactly MAXSEMS semaphores
+*   (which must all succeed), then attempts one more (which must return -1).
+*   Frees semaphore at index 105, then creates a new one, which must succeed
+*   by reusing the freed slot. This verifies that the semaphore table correctly
+*   tracks free slots and reclaims them after SemFree.
+*
+* EXPECTED BEHAVIOR:
+*   - All MAXSEMS creates succeed silently.
+*   - Create at MAXSEMS returns -1 (table full).
+*   - SemFree(semaphore[105]) returns 0.
+*   - Next SemCreate after free returns 0 and reuses the slot.
+*   - "TEST PASSED" is printed on success.
+*
+* SYSTEM CALLS TESTED:
+*   SemCreate (capacity limit), SemFree (slot reclamation), Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

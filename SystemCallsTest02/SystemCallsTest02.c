@@ -9,8 +9,22 @@
 *
 * SystemCallsTest02
 *
-* Testing simple termination of the system when the user process returns.
-* 
+* PURPOSE:
+*   Tests that a user-level process which returns from its entry point function
+*   (rather than explicitly calling Exit) is handled correctly by the kernel.
+*   The process returns -1 from SystemCallsEntryPoint. The kernel must treat
+*   this return as an implicit Exit with the returned value as the status code.
+*   This verifies that the system call wrapper around the user entry point
+*   properly intercepts the return and calls Exit on the process's behalf.
+*
+* EXPECTED BEHAVIOR:
+*   - Process returns -1 without calling Exit.
+*   - System does not crash or hang.
+*   - Kernel treats the return as a clean process termination.
+*
+* SYSTEM CALLS TESTED:
+*   Exit (implicit, via return from entry point)
+*
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)
 {

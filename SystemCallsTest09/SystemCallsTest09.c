@@ -8,8 +8,25 @@
 
 /*********************************************************************************
 *
-* SystemCallsTest090
+* SystemCallsTest09
 *
+* PURPOSE:
+*   Tests the SemFree system call when processes are blocked on the semaphore
+*   being freed. Three children each perform SemP on a semaphore with initial
+*   value 0 and will all block. A fourth child calls SemFree on that semaphore.
+*   Per the spec, SemFree must unblock all waiting processes, which must then
+*   exit immediately with error code 1. This verifies that SemFree correctly
+*   handles the case where blocked processes exist at the time of the free.
+*
+* EXPECTED BEHAVIOR:
+*   - Children 1, 2, and 3 block on SemP.
+*   - Child 4 calls SemFree, which returns 1 (processes were waiting).
+*   - All three blocked children are unblocked and exit with status 1.
+*   - Child 4 exits with status 9.
+*   - Parent exits with status 8 without waiting.
+*
+* SYSTEM CALLS TESTED:
+*   SemCreate, SemP (blocking), SemFree (with blocked processes), Spawn, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

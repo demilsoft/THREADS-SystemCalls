@@ -12,6 +12,23 @@ int GetAndShowPid(void* strArgs);
 *
 * SystemCallsTest12
 *
+* PURPOSE:
+*   Tests the GetPID system call by spawning three children that each retrieve
+*   and display their own PID. All three are spawned with the same name string,
+*   which exercises the system's handling of duplicate process names. The parent
+*   waits for all three and displays each returned PID. Note: this test verifies
+*   that GetPID runs without error but does not cross-verify that the returned
+*   PID matches the one from Spawn -- see Test27 for that stricter check.
+*
+* EXPECTED BEHAVIOR:
+*   - Each child calls GetPID and prints its PID.
+*   - Three distinct PIDs are reported.
+*   - All three Wait calls return successfully.
+*   - Children exit with return value 9 (via return, not Exit).
+*   - Parent exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   GetPID, Spawn, Wait, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

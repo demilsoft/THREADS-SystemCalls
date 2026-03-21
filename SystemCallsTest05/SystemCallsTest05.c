@@ -9,8 +9,22 @@
 /*********************************************************************************
 *
 * SystemCallsTest05
-* 
-* Tests the handling of creating more than MAXSEMS semaphores.
+*
+* PURPOSE:
+*   Tests the upper boundary of semaphore creation. Attempts to create
+*   MAXSEMS + 2 semaphores in a loop and records the return value at each
+*   index. The first MAXSEMS calls must succeed (return 0). Once the semaphore
+*   table is full, subsequent calls must return -1. This verifies that the
+*   kernel correctly enforces the MAXSEMS limit and does not overflow its
+*   internal semaphore table.
+*
+* EXPECTED BEHAVIOR:
+*   - Indices 0 through MAXSEMS-1: SemCreate returns 0.
+*   - Index MAXSEMS and MAXSEMS+1: SemCreate returns -1.
+*   - No crash or memory corruption occurs at the boundary.
+*
+* SYSTEM CALLS TESTED:
+*   SemCreate (boundary/limit), Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

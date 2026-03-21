@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <HasSolution>$([System.IO.File]::Exists('$(ProjectDir)..\SystemCalls-Solution.c'))</HasSolution>
+  </PropertyGroup>
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -26,9 +29,14 @@
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup Condition="'$(HasSolution)'=='False'">
+    <ClCompile Include="..\SystemCalls.c" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(HasSolution)'=='True'">
+    <ClCompile Include="..\SystemCalls-Solution.c" />
+  </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\libuser.c" />
-    <ClCompile Include="..\SystemCalls.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Include\Messaging.h" />

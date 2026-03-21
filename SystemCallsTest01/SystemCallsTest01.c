@@ -10,6 +10,20 @@
 *
 * SystemCallsTest01
 *
+* PURPOSE:
+*   Basic smoke test for the Spawn system call. Spawns a single child process
+*   that performs no semaphore operations and exits immediately. Verifies that
+*   Spawn returns a valid PID and that a user-level child process can be created
+*   and run without error. The parent exits without calling Wait, which also
+*   exercises the orphan path for a child that has already exited.
+*
+* EXPECTED BEHAVIOR:
+*   - Spawn returns a positive PID for the child.
+*   - Child starts, performs 0 SemP and 0 SemV operations, exits with status 9.
+*   - Parent exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   Spawn, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

@@ -12,6 +12,22 @@ int SleepForTwo(void* strArgs);
 *
 * SystemCallsTest10
 *
+* PURPOSE:
+*   Tests the GetTimeofDay system call and verifies that user-level processes
+*   can measure elapsed wall-clock time. Three children each spin-wait for
+*   2,000,000 microseconds (2 seconds) using GetTimeofDay in a busy loop,
+*   then report elapsed time. The parent waits for all three. This also
+*   exercises concurrent execution of multiple user-level processes that
+*   are all CPU-bound simultaneously.
+*
+* EXPECTED BEHAVIOR:
+*   - Each child reports elapsed time close to 2,000,000 microseconds.
+*   - All three children complete and exit with status 9.
+*   - All three Wait calls return successfully.
+*   - Parent exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   GetTimeofDay, Spawn, Wait, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

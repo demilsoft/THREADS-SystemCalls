@@ -9,6 +9,22 @@
 *
 * SystemCallsTest07
 *
+* PURPOSE:
+*   Tests that multiple processes can be simultaneously blocked on the same
+*   semaphore and that multiple SemV operations correctly release them one
+*   at a time. Three children each perform one SemP on a semaphore with
+*   initial value 0 and will all block. A fourth child performs three SemV
+*   operations to release all three blocked children. The parent exits
+*   without waiting, exercising the orphan cleanup path for all children.
+*
+* EXPECTED BEHAVIOR:
+*   - Children 1, 2, and 3 all block on SemP.
+*   - Child 4 calls SemV three times, releasing one blocker per call.
+*   - All three blocked children unblock and exit with status 9.
+*   - Parent exits with status 8 without calling Wait.
+*
+* SYSTEM CALLS TESTED:
+*   SemCreate, SemP (multiple blockers), SemV (multiple releases), Spawn, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

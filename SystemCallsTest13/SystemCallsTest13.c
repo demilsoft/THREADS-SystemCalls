@@ -10,6 +10,24 @@
 *
 * SystemCallsTest13
 *
+* PURPOSE:
+*   Tests SemFree return value when processes are blocked on the semaphore.
+*   A semaphore is created with initial value 1, then immediately decremented
+*   to 0 by the parent via SemP. Two children are spawned that each attempt
+*   SemP followed by SemV (SEMP_FIRST option), causing both to block since
+*   the semaphore value is 0. The parent then calls SemFree. Per the spec,
+*   SemFree must return 1 when there are blocked processes, and must unblock
+*   all of them. A return value other than 1 is treated as a test failure.
+*
+* EXPECTED BEHAVIOR:
+*   - Parent's SemP succeeds, depleting the semaphore.
+*   - Both children block on their SemP calls.
+*   - SemFree returns 1 (blocked processes present) -- prints confirmation.
+*   - Any other return value prints "TEST FAILED".
+*   - Parent exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   SemCreate, SemP, SemFree (return value with blocked processes), Spawn, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

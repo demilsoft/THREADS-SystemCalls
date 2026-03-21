@@ -15,6 +15,26 @@ int SpawnOneDoNothing(void* strArgs);
 *
 * SystemCallsTest17
 *
+* PURPOSE:
+*   Tests process table capacity by attempting to spawn MAXPROC processes from
+*   a single intermediate process. The root spawns SpawnLevelOne, which spawns
+*   SpawnMaxDoNothing. SpawnMaxDoNothing loops MAXPROC times spawning DoNothing
+*   children (each of which exits immediately). SpawnMaxDoNothing then exits,
+*   orphaning any still-running DoNothing children, which exercises the kernel's
+*   process table reclamation under stress. SpawnLevelOne then waits for
+*   SpawnMaxDoNothing, spawns one more DoNothing child (verifying the table
+*   has been reclaimed), and waits for it. This is the primary process table
+*   stress test for the System Calls project.
+*
+* EXPECTED BEHAVIOR:
+*   - MAXPROC DoNothing processes are spawned successfully (or as many as fit).
+*   - SpawnMaxDoNothing exits, triggering cleanup of orphaned children.
+*   - SpawnLevelOne can spawn at least one more process after the mass exit.
+*   - All Wait calls at each level return correctly.
+*   - Root exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   Spawn (stress, up to MAXPROC), Wait, Exit (orphan cleanup at scale), GetPID
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)

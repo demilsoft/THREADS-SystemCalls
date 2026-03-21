@@ -221,6 +221,9 @@
     <ClCompile Include="SystemCallsTest00.c" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\SystemCalls\SystemCalls.vcxproj">
+      <Project>{fafb29ee-8163-4a96-ba5f-883120e00715}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\TestCommon\TestCommon.vcxproj">
       <Project>{837f1b9f-d28b-4917-a63e-04bf74c670fd}</Project>
     </ProjectReference>

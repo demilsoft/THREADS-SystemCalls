@@ -10,8 +10,22 @@
 *
 * SystemCallsTest14
 *
-*  Basic wait and terminate test
-* 
+* PURPOSE:
+*   Basic wait-and-terminate test. Spawns a single child that performs no
+*   semaphore operations and exits, then the parent calls Wait to collect it.
+*   This is the simplest end-to-end test of the Spawn/Wait/Exit cycle and
+*   verifies that Wait correctly blocks until the child exits and returns
+*   both the child's PID and exit status to the parent.
+*
+* EXPECTED BEHAVIOR:
+*   - Child starts, performs 0 semaphore operations, exits with status 9.
+*   - Parent's Wait returns the child's PID and status 9.
+*   - Parent prints the returned PID and status.
+*   - Parent exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   Spawn, Wait, Exit
+*
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)
 {

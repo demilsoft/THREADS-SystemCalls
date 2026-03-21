@@ -12,6 +12,23 @@ int SleepForTwoWithCPUTime(void* strArgs);
 *
 * SystemCallsTest11
 *
+* PURPOSE:
+*   Tests the CPUTime system call, which returns the CPU time consumed by
+*   the calling process (as opposed to wall-clock time from GetTimeofDay).
+*   Three children each spin-wait until they have consumed 2000 milliseconds
+*   of CPU time, then report the elapsed CPU time. The parent waits for all
+*   three. This verifies that CPUTime correctly measures per-process CPU
+*   consumption rather than global elapsed time.
+*
+* EXPECTED BEHAVIOR:
+*   - Each child reports CPU time close to 2000 milliseconds.
+*   - CPU time per process is independent of other concurrent processes.
+*   - All three children complete and exit with status 9.
+*   - All three Wait calls return successfully.
+*   - Parent exits with status 8.
+*
+* SYSTEM CALLS TESTED:
+*   CPUTime, Spawn, Wait, Exit
 *
 *********************************************************************************/
 int SystemCallsEntryPoint(void* pArgs)
