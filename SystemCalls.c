@@ -1,5 +1,10 @@
-// SysCalls.c
-
+///////////////////////////////////////////////////////////////////////////
+//   SystemCalls.c
+//   College of Applied Science and Technology
+//   The University of Arizona
+//   CYBV 489
+//   Student Names:  Dean Lewis
+///////////////////////////////////////////////////////////////////////////
 #define _CRT_SECURE_NO_WARNINGS
 #define SYSTEM_CALLS_PROJECT
 
@@ -35,8 +40,7 @@
 *
 *********************************************************************************/
 
-/* -------------------- Typedefs and Structs -------------------------------- */
-
+/////////////////////////////// Typedefs and Structs ///////////////////////////////
 /*****************************************************************************
 *  checkKernelMode
 *  Checks the PSR for kernel mode and halts if in user mode.
@@ -65,11 +69,7 @@ static inline void checkKernelMode(const char* functionName)
     }
 }
 
-/*
- * SemData
- *
- * Kernel-side state for a single semaphore. Add members as needed.
- */
+/*SemData Kernel-side state for a single semaphore. Add members as needed.*/
 typedef struct sem_data
 {
     int status;     /* 0 = free, 1 = in use */
@@ -79,10 +79,7 @@ typedef struct sem_data
     /* Add additional members needed. */
 } SemData;
 
-
-/*UserProcess
- * Kernel-side state for a single user-level process.
- * Add members as needed.*/
+/*UserProcess * Kernel-side state for a single user-level process. Add members as needed.*/
 typedef struct user_proc
 {
     struct user_proc* pNextSibling;
@@ -93,30 +90,30 @@ typedef struct user_proc
 
     int               pid;
     int               parentPid;
-    int               status;               // TEST00 free or in use 
-    int               exited;               // TEST00 0 / 1
+	int               status;               // TEST00 ADD free test slot = 0, active process = 1
+    int               exited;              
     int               exitStatus;
-    int               mboxStartup;          // TEST00 child waits here before launch 
-    int               mboxJoin;             // TEST00 parent waits here for child exit 
+    int               mboxStartup;          
+    int               mboxJoin;             
     int             (*startFunc)(char*);    /* entry point for this process */
     char* startArg;
 } UserProcess;
 
+/////////////////////////////// Typedefs and Structs ///////////////////////////////
 
-/* -------------------- Constants ------------------------------------------ */
-
+/////////////////////////////// CONSTANTS ///////////////////////////////
 #define MAXSEMS     200
 #define USERMODE    set_psr(get_psr() & ~PSR_KERNEL_MODE)
+/////////////////////////////// CONSTANTS ///////////////////////////////
 
-
-/* -------------------- Globals -------------------------------------------- */
-
+//////////////////////////////// GLOBALS ////////////////////////////////
 static UserProcess  userProcTable[MAXPROC];
 static SemData      semTable[MAXSEMS];
+//////////////////////////////// GLOBALS ////////////////////////////////
 
 
-/* -------------------- Prototypes ----------------------------------------- */
 
+////////////////////////////// PROTOTYPES ///////////////////////////////
 void    sys_exit(int resultCode);
 int     sys_wait(int* pStatus);
 int     sys_spawn(char* name, int (*startFunc)(char*), char* arg, int stackSize, int priority);
@@ -133,11 +130,14 @@ static void sysNull(system_call_arguments_t* args);
 int MessagingEntryPoint(char*);
 int SystemCallsEntryPoint(void* pArgs);
 
-static UserProcess* getUserProc(int pid);
-static void markUserProcFree(UserProcess* pProc);
+static UserProcess* getUserProcTable(int pid);                              // TEST00 ADD
+static void freeUserProcTable(UserProcess* pProc);                          // TEST00 ADD
 
 void initSemTable(void);
 void initUserProcTable(void);
+static int findActiveChildPid(int parentPid);                               // TEST01 ADD find live child for parent
+////////////////////////////// PROTOTYPES ///////////////////////////////
+
 /*********************************************************************************
 *
 * MessagingEntryPoint
@@ -153,37 +153,36 @@ int MessagingEntryPoint(char* arg)
     int pid;
     int i;
 
-    checkKernelMode(__func__);                                                // TEST00 Must begin in kernel mode
+    checkKernelMode(__func__);                                                // TEST00 ADD Check Kernel Mode
 
-    status = -1;                                                              // TEST00 Default wait status value
+    status = -1;                                                           
 
-    initSemTable();                                                           // TEST00 Prepare semaphore bookkeeping
-    initUserProcTable();                                                      // TEST00 Prepare user process tracking
+    initSemTable();                                                    
+    initUserProcTable();                                                     
 
-    for (i = 0; i < THREADS_MAX_SYSCALLS; i++)                                // TEST00 Initialize syscall vector entries
+    for (i = 0; i < THREADS_MAX_SYSCALLS; i++)                             
     {
         systemCallVector[i] = system_call_handler;                            // TEST00 Route calls through dispatcher
     }
 
-    pid = sys_spawn("SystemCalls", SystemCallsEntryPoint, NULL,               // TEST00 Spawn first user process
+    pid = sys_spawn("SystemCalls", SystemCallsEntryPoint, NULL,            
         THREADS_MIN_STACK_SIZE * 4, 3);
 
-    if (pid < 0)                                                              // TEST00 Spawn must succeed
+    if (pid < 0)                                                             
     {
-        console_output(FALSE, "MessagingEntryPoint: sys_spawn failed\n");     // TEST00 Report spawn failure
-        return -1;                                                            // TEST00 Stop on startup failure
+        console_output(FALSE, "MessagingEntryPoint: sys_spawn failed\n");     
+        return -1;                                                         
     }
 
-    if (sys_wait(&status) < 0)                                                // TEST00 Parent must wait on child
+    if (sys_wait(&status) < 0)                                            
     {
-        console_output(FALSE, "MessagingEntryPoint: sys_wait failed\n");      // TEST00 Report wait failure
-        return -1;                                                            // TEST00 Stop on wait failure
+        console_output(FALSE, "MessagingEntryPoint: sys_wait failed\n");     
+        return -1;                                                           
     }
 
-    return 0;                                                                 // TEST00 Kernel startup completed
+    return 0;                                                               
 
 } /* MessagingEntryPoint */
-
 
 /*********************************************************************************
 *
@@ -205,55 +204,28 @@ static int launchUserProcess(char* pArg)
     int resultCode;
     int pid;
 
-    checkKernelMode(__func__);                                                // TEST00 launch begins in kernel mode
+    checkKernelMode(__func__);                                                // TEST00 ADD Check Kernel Mode
 
-    pid = k_getpid();                                                         // TEST00 get current child pid
-    pProc = getUserProc(pid);                                                 // TEST00 get child table entry
+    pid = k_getpid();                                                 
+    pProc = getUserProcTable(pid);                                             
 
-    mailbox_receive(pProc->mboxStartup, NULL, 0, TRUE);                       // TEST00 wait for spawn setup
+    mailbox_receive(pProc->mboxStartup, NULL, 0, TRUE);                       // TEST00 ADD wait for spawn 
 
-    if (signaled())                                                           // TEST00 exit if signaled before start
+    if (signaled())                                                           // TEST00 ADD exit if signaled before start
     {
-        console_output(FALSE, "%s - Process signaled in launch.\n", __func__);// TEST00 report startup signal
-        sys_exit(0);                                                          // TEST00 terminate signaled child
+        console_output(FALSE, "%s - Process signaled in launch.\n", __func__);
+        sys_exit(0);                                                          // TEST00 ADD terminate signal child
     }
 
-    USERMODE;                                                                 // TEST00 switch child to user mode
+    USERMODE;                                                                 // TEST00 ADD switch child to user mode
 
-    resultCode = pProc->startFunc(pProc->startArg);                           // TEST00 run user entry point
+    resultCode = pProc->startFunc(pProc->startArg);                         
 
-    sys_exit(resultCode);                                                     // TEST00 returned value becomes exit code
+    sys_exit(resultCode);                                                    
 
-    return 0;                                                                 // TEST00 should not normally return
+    return 0;                                                              
 
 } /* launchUserProcess */
-
-//static int launchUserProcess(char* pArg)
-//{
-//    UserProcess* pProc;
-//    int resultCode;
-//
-//    /* Wait for sys_spawn to finish initializing our process table entry */
-//    mailbox_receive(userProcTable[k_getpid() % MAXPROC].mboxStartup, NULL, 0, TRUE);
-//
-//    if (signaled())
-//    {
-//        console_output(FALSE, "%s - Process signaled in launch.\n", "launchUserProcess");
-//        sys_exit(0);
-//    }
-//
-//    USERMODE;
-//
-//    pProc = &userProcTable[k_getpid() % MAXPROC];
-//    resultCode = pProc->startFunc(NULL);    /* pass correct arg */
-//
-//    /* If the entry point returns rather than calling Exit, treat as Exit */
-//    sys_exit(resultCode);
-//
-//    return 0;
-//
-//} /* launchUserProcess */
-
 
 /*********************************************************************************
 *
@@ -282,38 +254,38 @@ int sys_spawn(char* name, int (*startFunc)(char*), char* arg,
     int parentPid;
     UserProcess* pProcess;
 
-    checkKernelMode(__func__);                                                // TEST00 spawn runs in kernel mode
+    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
 
-    if (name == NULL || startFunc == NULL)                                    // TEST00 reject invalid spawn inputs
+    if (name == NULL || startFunc == NULL)                                   
     {
         return -1;                                                            // TEST00 invalid spawn parameters
     }
 
-    if (stackSize < THREADS_MIN_STACK_SIZE)                                   // TEST00 reject invalid stack size
+    if (stackSize < THREADS_MIN_STACK_SIZE)                                  
     {
-        return -1;                                                            // TEST00 stack too small
+        return -1;                                                            // TEST00 ADD stack too small
     }
 
-    parentPid = k_getpid();                                                   // TEST00 save parent process id
+    parentPid = k_getpid();                                                   // TEST00 ADD save parent process id
 
-    pid = k_spawn(name, launchUserProcess, arg, stackSize, priority);         // TEST00 create kernel child
-    if (pid < 0)                                                              // TEST00 stop on spawn failure
+    pid = k_spawn(name, launchUserProcess, arg, stackSize, priority);         // TEST00 ADD create kernel child
+    if (pid < 0)                                                              
     {
         return -1;                                                            // TEST00 kernel spawn failed
     }
 
-    pProcess = getUserProc(pid);                                              // TEST00 locate child process entry
-    pProcess->pid = pid;                                                      // TEST00 store child pid
-    pProcess->parentPid = parentPid;                                          // TEST00 store parent pid
-    pProcess->status = 1;                                                     // TEST00 mark slot active
-    pProcess->exited = 0;                                                     // TEST00 child not exited yet
-    pProcess->exitStatus = 0;                                                 // TEST00 clear exit status
-    pProcess->startFunc = startFunc;                                          // TEST00 save user entry point
-    pProcess->startArg = arg;                                                 // TEST00 save user argument
+    pProcess = getUserProcTable(pid);                                              // TEST00 ADD locate child process entry
+    pProcess->pid = pid;                                                      // Child pid
+    pProcess->parentPid = parentPid;                                          // parent pid
+    pProcess->status = 1;                                                     // mark slot active
+    pProcess->exited = 0;                                                     // child not exited yet
+    pProcess->exitStatus = 0;                                                 // lear exit status
+    pProcess->startFunc = startFunc;                                          // save user entry point
+    pProcess->startArg = arg;                                                 // save user argument
 
-    mailbox_send(pProcess->mboxStartup, NULL, 0, FALSE);                      // TEST00 release child to run
+    mailbox_send(pProcess->mboxStartup, NULL, 0, FALSE);                      // TEST00 ADD release child to run
 
-    return pid;                                                               // TEST00 return new child pid
+    return pid;                                                              
 
 } /* sys_spawn */
 
@@ -337,23 +309,23 @@ int sys_wait(int* pStatus)
     int pid;
     int status;
 
-    checkKernelMode(__func__);                                                // TEST00 wait runs in kernel mode
+    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
 
-    pid = k_wait(&status);                                                    // TEST00 reap child in kernel
+    pid = k_wait(&status);                                                 
 
-    if (pid < 0)                                                              // TEST00 no child or wait failure
+    if (pid < 0)                                                            
     {
-        return -1;                                                            // TEST00 wait did not succeed
+        return -1;                                                            // TEST00 ADD wait did not succeed
     }
 
-    if (pStatus != NULL)                                                      // TEST00 return child exit status
+    if (pStatus != NULL)                                                    
     {
-        *pStatus = status;                                                    // TEST00 copy kernel wait status
+        *pStatus = status;                                                    // TEST00 ADD copy kernel wait status
     }
 
-    markUserProcFree(getUserProc(pid));                                       // TEST00 clear user process slot
+    freeUserProcTable(getUserProcTable(pid));                             // TEST00 clear user process slot
 
-    return pid;                                                               // TEST00 return reaped child pid
+    return pid;                                                          
 
 } /* sys_wait */
 
@@ -375,17 +347,30 @@ int sys_wait(int* pStatus)
 void sys_exit(int resultCode)
 {
     int pid;
+    int childPid;
+    int childStatus;
     UserProcess* pProc;
 
-    checkKernelMode(__func__);                                                // TEST00 exit runs in kernel mode
+    checkKernelMode(__func__);                                                 // TEST01 ALTER exit runs in kernel mode
 
-    pid = k_getpid();                                                         // TEST00 get exiting process id
-    pProc = getUserProc(pid);                                                 // TEST00 locate exiting process slot
+    pid = k_getpid();                                                          // TEST01 ADD get exiting process id
+    pProc = getUserProcTable(pid);
 
-    pProc->exited = 1;                                                        // TEST00 record exit event
-    pProc->exitStatus = resultCode;                                           // TEST00 save exit status
+    pProc->exited = 1;                                                         // TEST01 ADD process exit
+    pProc->exitStatus = resultCode;                                            // TEST01 ADD save exit result
 
-    k_exit(resultCode);                                                       // TEST00 terminate and notify kernel
+    childPid = findActiveChildPid(pid);                                        // TEST01 ADD check for active children
+    while (childPid >= 0)                                                      // TEST01 ADD kill all active children
+    {
+        k_kill(childPid, SIG_TERM);                                            // TEST01 ADD signal child to terminate
+        k_wait(&childStatus);                                             
+        freeUserProcTable(getUserProcTable(childPid));                               // TEST01 ADD clear child process slot
+        childPid = findActiveChildPid(pid);                                    // TEST01 ADD search next child
+    }
+
+    pProc->status = 0;                                                         // TEST01 ADD mark current slot free
+
+    k_exit(resultCode);                                               
 
 } /* sys_exit */
 
@@ -513,7 +498,7 @@ static void sysNull(system_call_arguments_t* args)
 *********************************************************************************/
 static void system_call_handler(system_call_arguments_t* args)
 {
-    checkKernelMode(__func__);                                                // TEST00 handler must run in kernel mode
+    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
 
     if (args == NULL)
     {
@@ -523,32 +508,33 @@ static void system_call_handler(system_call_arguments_t* args)
 
     switch (args->call_id)
     {
-    case SYS_SPAWN:
-        /*
-         * Argument mapping (SYS_SPAWN):
-         *   INPUT:  args->arguments[4] = name (char*)
-         *           args->arguments[0] = func (int(*)(char*))
-         *           args->arguments[1] = arg  (char*)
-         *           args->arguments[2] = stack_size (int)
-         *           args->arguments[3] = priority (int)
-         *   OUTPUT: args->arguments[0] = pid
-         *           args->arguments[3] = return value (0 on success, -1 on failure)
-         */
-        args->arguments[0] = (intptr_t)sys_spawn(
-            (char*)args->arguments[4],          /* name      */
-            (int (*)(char*))args->arguments[0], /* func      */
-            (char*)args->arguments[1],          /* arg       */
-            (int)args->arguments[2],            /* stackSize */
-            (int)args->arguments[3]);           /* priority  */
-        args->arguments[3] = (intptr_t)((intptr_t)args->arguments[0] >= 0 ? 0 : -1);
-        break;
+        case SYS_SPAWN:
+        {
+                int pid;
+
+                pid = sys_spawn(
+                    (char*)args->arguments[4],
+                    (int (*)(char*))args->arguments[0],
+                    (char*)args->arguments[1],
+                    (int)args->arguments[2],
+                    (int)args->arguments[3]);
+
+                args->arguments[0] = pid;                                           // TEST01 ADD return child pid 
+                args->arguments[3] = (pid >= 0) ? 0 : -1;                           // TEST01 ADD return success status
+
+                break;
+        }
         /* Add remaining cases here */
-    case SYS_EXIT:
-        sys_exit((int)args->arguments[0]);                                    // TEST00 terminate current user process
-        return;                                                               // TEST00 exit never returns
-    default:
-        sysNull(args);
-        break;
+        case SYS_EXIT:
+        {
+            sys_exit((int)args->arguments[0]);                                      // TEST00 terminate current user process
+            return;
+        }                                                                           // TEST00 exit never returns
+        default:
+        {
+            sysNull(args);
+            break;
+        }
     }
 
     if (signaled())
@@ -561,60 +547,82 @@ static void system_call_handler(system_call_arguments_t* args)
 
 } /* system_call_handler */
 
-static UserProcess* getUserProc(int pid)
+// TEST00 ADD helper to get user process table entry for given pid
+static UserProcess* getUserProcTable(int pid)
 {
-    return &userProcTable[pid % MAXPROC];                                     // TEST00 map pid to process slot
+    return &userProcTable[pid % MAXPROC];                                   
 }
 
-static void markUserProcFree(UserProcess* pProc)
+// TEST01 ADD search user process table for active child of given parent, return child pid or -1 if none found
+static int findActiveChildPid(int parentPid)
 {
-    if (pProc == NULL)                                                        // TEST00 ignore null pointer
+    int i;                                                                  
+
+    for (i = 0; i < MAXPROC; i++)                                              // TEST01 ADD search all user slots
     {
-        return;                                                               // TEST00 nothing to clear
+        if (userProcTable[i].status != 0 &&                                    // TEST01 ADD active process slot
+            userProcTable[i].parentPid == parentPid &&                         // TEST01 ADD matching parent id
+            userProcTable[i].pid >= 0)                                         // TEST01 ADD valid child pid
+        {
+            return userProcTable[i].pid;                                      
+        }
     }
 
-    pProc->pid = -1;                                                          // TEST00 mark slot unused
-    pProc->parentPid = -1;                                                    // TEST00 clear parent link
-    pProc->status = 0;                                                        // TEST00 mark slot free
-    pProc->exited = 0;                                                        // TEST00 clear exit flag
-    pProc->exitStatus = 0;                                                    // TEST00 clear exit status
-    pProc->startFunc = NULL;                                                  // TEST00 clear saved entry point
-    pProc->startArg = NULL;                                                   // TEST00 clear saved argument
+    return -1;                                                                
 }
 
+// Init semaphore process table
 void initSemTable(void)
 {
     int i;
 
-    checkKernelMode(__func__);                                                // TEST00 initialize semaphores in kernel mode
+    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
 
-    for (i = 0; i < MAXSEMS; i++)                                             // TEST00 clear semaphore table
+    for (i = 0; i < MAXSEMS; i++)                                             // TEST00 free semaphore 
     {
-        semTable[i].status = 0;                                               // TEST00 semaphore slot free
-        semTable[i].sem_id = -1;                                              // TEST00 invalid semaphore id
-        semTable[i].count = 0;                                                // TEST00 clear semaphore count
+        semTable[i].status = 0;                                               
+        semTable[i].sem_id = -1;                                             
+        semTable[i].count = 0;                                           
     }
 }
 
+// Init user process table
 void initUserProcTable(void)
 {
     int i;
 
-    checkKernelMode(__func__);                                                // TEST00 initialize table in kernel mode
+    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
 
     for (i = 0; i < MAXPROC; i++)                                             // TEST00 initialize each user slot
     {
-        memset(&userProcTable[i], 0, sizeof(UserProcess));                    // TEST00 clear process entry
+        memset(&userProcTable[i], 0, sizeof(UserProcess));              
 
-        userProcTable[i].pid = -1;                                            // TEST00 mark slot unused
-        userProcTable[i].parentPid = -1;                                      // TEST00 no parent assigned
-        userProcTable[i].status = 0;                                          // TEST00 slot starts free
-        userProcTable[i].exited = 0;                                          // TEST00 clear exit flag
-        userProcTable[i].exitStatus = 0;                                      // TEST00 clear exit status
-        userProcTable[i].startFunc = NULL;                                    // TEST00 clear entry function
-        userProcTable[i].startArg = NULL;                                     // TEST00 clear entry argument
+        userProcTable[i].pid = -1;                                      
+        userProcTable[i].parentPid = -1;                                    
+        userProcTable[i].status = 0;                                       
+        userProcTable[i].exited = 0;                                         
+        userProcTable[i].exitStatus = 0;                                      
+        userProcTable[i].startFunc = NULL;                                    
+        userProcTable[i].startArg = NULL;                                    
 
-        userProcTable[i].mboxStartup = mailbox_create(1, 0);                  // TEST00 startup synchronization mailbox
-        userProcTable[i].mboxJoin = mailbox_create(1, sizeof(int));           // TEST00 parent join mailbox
+        userProcTable[i].mboxStartup = mailbox_create(1, 0);                  // TEST00 ADD startup synchronization mailbox
+        userProcTable[i].mboxJoin = mailbox_create(1, sizeof(int));           // TEST00 ADD parent join mailbox
     }
+}
+
+// Free user process table
+static void freeUserProcTable(UserProcess* pProc)
+{
+    if (pProc == NULL)
+    {
+        return;
+    }
+
+    pProc->pid = -1;                                                          // TEST00 ADD mark slot unused
+    pProc->parentPid = -1;                                                    // TEST00 ADD clear parent link
+    pProc->status = 0;                                                        // TEST00 ADD mark slot free
+    pProc->exited = 0;                                                        // TEST00 ADD clear exit flag
+    pProc->exitStatus = 0;                                                    // TEST00 ADD clear exit status
+    pProc->startFunc = NULL;                                                  // TEST00 ADD clear saved entry point
+    pProc->startArg = NULL;                                                   // TEST00 ADD clear saved argument
 }

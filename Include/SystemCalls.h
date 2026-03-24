@@ -1,11 +1,13 @@
-// SysCAlls.h
-
+///////////////////////////////////////////////////////////////////////////
+//   SystemCalls.h
+//   College of Applied Science and Technology
+//   The University of Arizona
+//   CYBV 489
+//   Student Names:  Dean Lewis
+///////////////////////////////////////////////////////////////////////////
 #pragma once
 
-
 #define MAXSEMS         200
-
-
 #define SYS_TERMREAD		    1
 #define SYS_TERMWRITE		    2
 #define SYS_SPAWN		        3
