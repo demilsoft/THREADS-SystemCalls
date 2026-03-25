@@ -7,7 +7,7 @@
 ///////////////////////////////////////////////////////////////////////////
 #pragma once
 
-#define MAXSEMS         200
+#define MAXSEMS					200
 #define SYS_TERMREAD		    1
 #define SYS_TERMWRITE		    2
 #define SYS_SPAWN		        3

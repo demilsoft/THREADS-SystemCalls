@@ -95,10 +95,9 @@ typedef struct user_proc
     int               exitStatus;
     int               mboxStartup;          
     int               mboxJoin;             
-    int             (*startFunc)(char*);    /* entry point for this process */
+    int               (*startFunc)(char*);  /* entry point for this process */
     char* startArg;
 } UserProcess;
-
 /////////////////////////////// Typedefs and Structs ///////////////////////////////
 
 /////////////////////////////// CONSTANTS ///////////////////////////////
@@ -110,8 +109,6 @@ typedef struct user_proc
 static UserProcess  userProcTable[MAXPROC];
 static SemData      semTable[MAXSEMS];
 //////////////////////////////// GLOBALS ////////////////////////////////
-
-
 
 ////////////////////////////// PROTOTYPES ///////////////////////////////
 void    sys_exit(int resultCode);
@@ -274,14 +271,14 @@ int sys_spawn(char* name, int (*startFunc)(char*), char* arg,
         return -1;                                                            // TEST00 kernel spawn failed
     }
 
-    pProcess = getUserProcTable(pid);                                              // TEST00 ADD locate child process entry
+    pProcess = getUserProcTable(pid);                                         // TEST00 ADD locate child process entry
     pProcess->pid = pid;                                                      // Child pid
-    pProcess->parentPid = parentPid;                                          // parent pid
-    pProcess->status = 1;                                                     // mark slot active
-    pProcess->exited = 0;                                                     // child not exited yet
-    pProcess->exitStatus = 0;                                                 // lear exit status
-    pProcess->startFunc = startFunc;                                          // save user entry point
-    pProcess->startArg = arg;                                                 // save user argument
+    pProcess->parentPid = parentPid;                                          // Parent pid
+    pProcess->status = 1;                                                     // slot active
+    pProcess->exited = 0;                                                     // child exited 
+    pProcess->exitStatus = 0;                                                 // exit status
+    pProcess->startFunc = startFunc;                                          // entry point
+    pProcess->startArg = arg;                                                 // arg
 
     mailbox_send(pProcess->mboxStartup, NULL, 0, FALSE);                      // TEST00 ADD release child to run
 
@@ -323,10 +320,9 @@ int sys_wait(int* pStatus)
         *pStatus = status;                                                    // TEST00 ADD copy kernel wait status
     }
 
-    freeUserProcTable(getUserProcTable(pid));                             // TEST00 clear user process slot
+    freeUserProcTable(getUserProcTable(pid));                                 // TEST00 clear user process slot
 
     return pid;                                                          
-
 } /* sys_wait */
 
 /*********************************************************************************
@@ -359,16 +355,16 @@ void sys_exit(int resultCode)
     pProc->exited = 1;                                                         // TEST01 ADD process exit
     pProc->exitStatus = resultCode;                                            // TEST01 ADD save exit result
 
-    childPid = findActiveChildPid(pid);                                        // TEST01 ADD check for active children
-    while (childPid >= 0)                                                      // TEST01 ADD kill all active children
+    childPid = findActiveChildPid(pid);                                        // TEST01 ADD check active children
+    while (childPid >= 0)                                                      // TEST01 ADD kill active children
     {
         k_kill(childPid, SIG_TERM);                                            // TEST01 ADD signal child to terminate
         k_wait(&childStatus);                                             
-        freeUserProcTable(getUserProcTable(childPid));                               // TEST01 ADD clear child process slot
+        freeUserProcTable(getUserProcTable(childPid));                         // TEST01 ADD clear child process slot
         childPid = findActiveChildPid(pid);                                    // TEST01 ADD search next child
     }
 
-    pProc->status = 0;                                                         // TEST01 ADD mark current slot free
+    pProc->status = 0;                                                         // TEST01 ADD current slot free
 
     k_exit(resultCode);                                               
 
@@ -498,7 +494,7 @@ static void sysNull(system_call_arguments_t* args)
 *********************************************************************************/
 static void system_call_handler(system_call_arguments_t* args)
 {
-    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
+    checkKernelMode(__func__);                                                // TEST00 ADD Check Kernel Mode
 
     if (args == NULL)
     {
@@ -520,16 +516,17 @@ static void system_call_handler(system_call_arguments_t* args)
                     (int)args->arguments[3]);
 
                 args->arguments[0] = pid;                                           // TEST01 ADD return child pid 
-                args->arguments[3] = (pid >= 0) ? 0 : -1;                           // TEST01 ADD return success status
+                args->arguments[3] = (pid >= 0) ? 0 : -1;                           // TEST01 ADD return status
 
                 break;
         }
         /* Add remaining cases here */
+		// Add cases for wait, exit, and semaphores
         case SYS_EXIT:
         {
-            sys_exit((int)args->arguments[0]);                                      // TEST00 terminate current user process
+            sys_exit((int)args->arguments[0]);                                      
             return;
-        }                                                                           // TEST00 exit never returns
+        }                                                                           
         default:
         {
             sysNull(args);
@@ -547,12 +544,6 @@ static void system_call_handler(system_call_arguments_t* args)
 
 } /* system_call_handler */
 
-// TEST00 ADD helper to get user process table entry for given pid
-static UserProcess* getUserProcTable(int pid)
-{
-    return &userProcTable[pid % MAXPROC];                                   
-}
-
 // TEST01 ADD search user process table for active child of given parent, return child pid or -1 if none found
 static int findActiveChildPid(int parentPid)
 {
@@ -561,7 +552,7 @@ static int findActiveChildPid(int parentPid)
     for (i = 0; i < MAXPROC; i++)                                              // TEST01 ADD search all user slots
     {
         if (userProcTable[i].status != 0 &&                                    // TEST01 ADD active process slot
-            userProcTable[i].parentPid == parentPid &&                         // TEST01 ADD matching parent id
+            userProcTable[i].parentPid == parentPid &&                         // TEST01 ADD match parent id
             userProcTable[i].pid >= 0)                                         // TEST01 ADD valid child pid
         {
             return userProcTable[i].pid;                                      
@@ -571,14 +562,20 @@ static int findActiveChildPid(int parentPid)
     return -1;                                                                
 }
 
-// Init semaphore process table
+// TEST00 ADD Get user process table entry for pid
+static UserProcess* getUserProcTable(int pid)
+{
+    return &userProcTable[pid % MAXPROC];
+}
+
+// TEST00 ADD Init semaphore process table
 void initSemTable(void)
 {
     int i;
 
-    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
+    checkKernelMode(__func__);                                                // TEST00 ADD Check Kernel Mode
 
-    for (i = 0; i < MAXSEMS; i++)                                             // TEST00 free semaphore 
+    for (i = 0; i < MAXSEMS; i++)                                             // TEST00 free sem
     {
         semTable[i].status = 0;                                               
         semTable[i].sem_id = -1;                                             
@@ -591,9 +588,9 @@ void initUserProcTable(void)
 {
     int i;
 
-    checkKernelMode(__func__);                                                // TEST00 ADD ADD Check Kernel Mode
+    checkKernelMode(__func__);                                                // TEST00 ADD Check Kernel Mode
 
-    for (i = 0; i < MAXPROC; i++)                                             // TEST00 initialize each user slot
+    for (i = 0; i < MAXPROC; i++)                                             // TEST00 init each user slot
     {
         memset(&userProcTable[i], 0, sizeof(UserProcess));              
 
@@ -605,7 +602,7 @@ void initUserProcTable(void)
         userProcTable[i].startFunc = NULL;                                    
         userProcTable[i].startArg = NULL;                                    
 
-        userProcTable[i].mboxStartup = mailbox_create(1, 0);                  // TEST00 ADD startup synchronization mailbox
+        userProcTable[i].mboxStartup = mailbox_create(1, 0);                  // TEST00 ADD startup synch mailbox
         userProcTable[i].mboxJoin = mailbox_create(1, sizeof(int));           // TEST00 ADD parent join mailbox
     }
 }
@@ -618,11 +615,11 @@ static void freeUserProcTable(UserProcess* pProc)
         return;
     }
 
-    pProc->pid = -1;                                                          // TEST00 ADD mark slot unused
+    pProc->pid = -1;                                                          // TEST00 ADD slot unused
     pProc->parentPid = -1;                                                    // TEST00 ADD clear parent link
-    pProc->status = 0;                                                        // TEST00 ADD mark slot free
+    pProc->status = 0;                                                        // TEST00 ADD slot free
     pProc->exited = 0;                                                        // TEST00 ADD clear exit flag
     pProc->exitStatus = 0;                                                    // TEST00 ADD clear exit status
-    pProc->startFunc = NULL;                                                  // TEST00 ADD clear saved entry point
-    pProc->startArg = NULL;                                                   // TEST00 ADD clear saved argument
+    pProc->startFunc = NULL;                                                  // TEST00 ADD clear entry point
+    pProc->startArg = NULL;                                                   // TEST00 ADD clear arg
 }
