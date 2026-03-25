@@ -69,6 +69,7 @@ typedef struct sem_data
     int status;     /* 0 = free, 1 = in use */
     int sem_id;     /* unique identifier returned to user */
     int count;      /* current semaphore value */
+    int mboxWait;   // TEST06 ADD zero slot mailbox
 
     /* Add additional members needed. */
 } SemData;
@@ -122,7 +123,10 @@ void init_user_proc_table(void);                                               /
 static void free_user_proc_table(UserProcess* pProc);                          // TEST00 ADD Free user process table
 static UserProcess* get_user_proc_table(int pid);                              // TEST00 ADD Get user proc table entry for pid
 static int find_active_child_pid(int parentPid);                               // TEST01 ADD find live child for parent
-void init_sem_table(void);                                                     // NOT USED YET Init user proc table
+void init_sem_table(void);                                                     // TEST06 ALTER initialize semaphore table cleanly
+int sys_semcreate(int value, int* semaphore);                                  // TEST06 ALTER separate semcreate syscall prototype
+int sys_semp(int semaphore);                                                   // TEST06 ADD syscall wrapper for SemP
+int sys_semv(int semaphore);                                                   // TEST06 ADD syscall wrapper for SemV
 ////////////////////////////// PROTOTYPES ///////////////////////////////
 
 /*********************************************************************************
@@ -206,9 +210,8 @@ static int launchUserProcess(char* pArg)
 
     USERMODE;                                                                 // TEST00 ADD switch child to user mode
 
-    resultCode = pProc->startFunc(pProc->startArg);                         
-
-    sys_exit(resultCode);                                                    
+    resultCode = pProc->startFunc(pProc->startArg);                           // TEST02 ALTER capture returned user status
+    Exit(resultCode);                                                         // TEST02 ALTER convert return into syscall exit                                                
 
     return 0;                                                              
 
@@ -374,10 +377,27 @@ void sys_exit(int resultCode)
 *********************************************************************************/
 int k_semcreate(int initial_value)
 {
-    int sem_id = -1;
+    int i;
 
-    return sem_id;
+    checkKernelMode(__func__);                                                // TEST04 ADD create semaphore in kernel mode
 
+    if (initial_value < 0)                                                    // TEST04 ADD reject negative initial value
+    {
+        return -1;                                                            // TEST04 ADD invalid semaphore initial value
+    }
+
+    for (i = 0; i < MAXSEMS; i++)                                             // TEST04 ADD search for free semaphore slot
+    {
+        if (semTable[i].status == 0)                                          // TEST04 ADD use first free semaphore slot
+        {
+            semTable[i].status = 1;                                           // TEST04 ADD mark semaphore slot active
+            semTable[i].sem_id = i;                                           // TEST04 ADD assign semaphore identifier
+            semTable[i].count = initial_value;                                // TEST04 ADD store initial semaphore count
+            return i;                                                         // TEST04 ADD return created semaphore id
+        }
+    }
+
+    return -1;                                                                // TEST04 ADD fail when table is full
 } /* k_semcreate */
 
 
@@ -395,9 +415,29 @@ int k_semcreate(int initial_value)
 *********************************************************************************/
 int k_semp(int sem_id)
 {
-    int result = -1;
+    SemData* pSem;                                                             // TEST06 ADD locate semaphore entry pointer
 
-    return result;
+    checkKernelMode(__func__);                                                 // TEST06 ADD SemP must run in kernel mode
+
+    if (sem_id < 0 || sem_id >= MAXSEMS)                                       // TEST06 ADD reject invalid semaphore id
+    {
+        return -1;                                                             // TEST06 ADD invalid semaphore id
+    }
+
+    pSem = &semTable[sem_id];                                                  // TEST06 ADD map semaphore id to table slot
+    if (pSem->status == 0 || pSem->sem_id != sem_id)                           // TEST06 ADD verify active semaphore entry
+    {
+        return -1;                                                             // TEST06 ADD semaphore entry not active
+    }
+
+    if (pSem->count > 0)                                                       // TEST06 ADD consume available semaphore count
+    {
+        pSem->count--;                                                         // TEST06 ADD decrement semaphore immediately
+        return 0;                                                              // TEST06 ADD SemP completed without blocking
+    }
+
+    mailbox_receive(pSem->mboxWait, NULL, 0, TRUE);                            // TEST06 ADD block until SemV wakes waiter
+    return 0;                                                                  // TEST06 ADD SemP completed after wakeup
 
 } /* k_semp */
 
@@ -415,9 +455,29 @@ int k_semp(int sem_id)
 *********************************************************************************/
 int k_semv(int sem_id)
 {
-    int result = -1;
+    SemData* pSem;                                                             // TEST06 ADD locate semaphore entry pointer
+    int result;                                                                // TEST06 ADD capture mailbox wake result
 
-    return result;
+    checkKernelMode(__func__);                                                 // TEST06 ADD SemV must run in kernel mode
+
+    if (sem_id < 0 || sem_id >= MAXSEMS)                                       // TEST06 ADD reject invalid semaphore id
+    {
+        return -1;                                                             // TEST06 ADD invalid semaphore id
+    }
+
+    pSem = &semTable[sem_id];                                                  // TEST06 ADD map semaphore id to table slot
+    if (pSem->status == 0 || pSem->sem_id != sem_id)                           // TEST06 ADD verify active semaphore entry
+    {
+        return -1;                                                             // TEST06 ADD semaphore entry not active
+    }
+
+    result = mailbox_send(pSem->mboxWait, NULL, 0, FALSE);                     // TEST06 ADD try waking blocked SemP waiter
+    if (result < 0)                                                            // TEST06 ADD no waiter accepted wakeup
+    {
+        pSem->count++;                                                         // TEST06 ADD increment count when no waiters
+    }
+
+    return 0;                                                                  // TEST06 ADD SemV completed successfully
 
 } /* k_semv */
 
@@ -460,6 +520,17 @@ static void sysNull(system_call_arguments_t* args)
 
 } /* sysNull */
 
+int sys_semp(int semaphore)
+{
+    checkKernelMode(__func__);                                                 // TEST06 ADD SemP wrapper runs in kernel mode
+    return k_semp(semaphore);                                                  // TEST06 ADD forward SemP to kernel helper
+}
+
+int sys_semv(int semaphore)
+{
+    checkKernelMode(__func__);                                                 // TEST06 ADD SemV wrapper runs in kernel mode
+    return k_semv(semaphore);                                                  // TEST06 ADD forward SemV to kernel helper
+}
 
 /*********************************************************************************
 *
@@ -516,7 +587,46 @@ static void system_call_handler(system_call_arguments_t* args)
         {
             sys_exit((int)args->arguments[0]);                                      
             return;
-        }                                                                           
+        }                        
+        case SYS_SEMCREATE:
+        {
+            int semaphore;                                                    // TEST04 ADD hold created semaphore id
+            int result;                                                       // TEST04 ADD hold syscall result code
+
+            result = sys_semcreate((int)args->arguments[0], &semaphore);      // TEST04 ADD create semaphore from syscall args
+
+            args->arguments[0] = semaphore;                                   // TEST04 ADD return semaphore id to user
+            args->arguments[3] = result;                                      // TEST04 ADD return syscall result code
+            break;
+        }
+        case SYS_WAIT:
+        {
+            int pid;                                                           // TEST06 ADD hold waited child pid
+            int status;                                                        // TEST06 ADD hold waited child status
+
+            pid = sys_wait(&status);                                           // TEST06 ADD wait for completed child
+
+            args->arguments[0] = pid;                                          // TEST06 ADD return waited child pid
+            args->arguments[1] = status;                                       // TEST06 ADD return waited child status
+            args->arguments[3] = (pid >= 0) ? 0 : -1;                          // TEST06 ADD return wait result code
+            break;
+        }
+        case SYS_SEMP:
+        {
+            int result;                                                        // TEST06 ADD hold SemP syscall result
+
+            result = sys_semp((int)args->arguments[0]);                        // TEST06 ADD decrement requested semaphore
+            args->arguments[3] = result;                                       // TEST06 ADD return SemP result code
+            break;
+        }
+        case SYS_SEMV:
+        {
+            int result;                                                        // TEST06 ADD hold SemV syscall result
+
+            result = sys_semv((int)args->arguments[0]);                        // TEST06 ADD increment requested semaphore
+            args->arguments[3] = result;                                       // TEST06 ADD return SemV result code
+            break;
+        }
         default:
         {
             sysNull(args);
@@ -599,18 +709,39 @@ static void free_user_proc_table(UserProcess* _pProc)
     _pProc->startArg = NULL;                                                   // TEST00 ADD clear arg
 }
 
+int sys_semcreate(int value, int* semaphore)
+{
+    int sem_id;
+
+    checkKernelMode(__func__);                                                // TEST04 ADD syscall helper runs in kernel mode
+
+    if (semaphore == NULL)                                                    // TEST04 ADD reject null semaphore pointer
+    {
+        return -1;                                                            // TEST04 ADD invalid semaphore output pointer
+    }
+
+    sem_id = k_semcreate(value);                                              // TEST04 ADD request kernel semaphore creation
+    if (sem_id < 0)                                                           // TEST04 ADD detect semaphore creation failure
+    {
+        return -1;                                                            // TEST04 ADD return semaphore creation failure
+    }
+
+    *semaphore = sem_id;                                                      // TEST04 ADD copy semaphore id to caller
+    return 0;                                                                 // TEST04 ADD report successful creation
+}
+
 // Init semaphore proc table
-// NOT IMPLEMENTED YET - placeholder for future semaphore implementation
 void init_sem_table(void)
 {
     int i;
 
-    checkKernelMode(__func__);                                                // TEST00 ADD Check Kernel Mode
+    checkKernelMode(__func__);                                                 // TEST06 ALTER initialize semaphores in kernel mode
 
-    for (i = 0; i < MAXSEMS; i++)                                            
+    for (i = 0; i < MAXSEMS; i++)                                              // TEST06 ALTER initialize each semaphore slot
     {
-        semTable[i].status = 0;
-        semTable[i].sem_id = -1;
-        semTable[i].count = 0;
+        semTable[i].status = 0;                                                // TEST06 ALTER mark semaphore slot free
+        semTable[i].sem_id = -1;                                               // TEST06 ALTER clear semaphore id
+        semTable[i].count = 0;                                                 // TEST06 ALTER clear semaphore count
+        semTable[i].mboxWait = mailbox_create(0, 0);                           // TEST06 ADD create zero-slot waiter mailbox
     }
 }
